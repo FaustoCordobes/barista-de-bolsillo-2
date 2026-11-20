@@ -226,5 +226,46 @@ test('Backup incluye las catas', () => {
   assert.equal(r.data.catas.length, 1); assert.equal(r.data.catas[0].flavors[0].id, 'miel');
 });
 
+console.log('\nSincronización con la nube');
+const H = (d) => BL.hashData(d);
+test('Hash estable: el orden de las claves no importa', () => {
+  assert.equal(H({ a: 1, b: [1, { c: 2, d: 3 }] }), H({ b: [1, { d: 3, c: 2 }], a: 1 }));
+  assert.notEqual(H({ a: 1 }), H({ a: 2 }));
+});
+test('Primer login: lo local sube y lo remoto baja', () => {
+  const p = BL.planSync({ 'recipe:1': { g: 15 } }, { 'recipe:2': { data: { g: 18 }, deleted: false, updated_at: 't1' } }, {});
+  assert.deepEqual(plain(p.push), ['recipe:1']); assert.deepEqual(plain(p.pull), ['recipe:2']);
+});
+test('Editado acá → sube; editado en otro dispositivo → baja', () => {
+  const last = { 'log:1': { h: H({ r: 3 }), u: 't1' }, 'log:2': { h: H({ r: 4 }), u: 't1' } };
+  const p = BL.planSync({ 'log:1': { r: 5 }, 'log:2': { r: 4 } },
+    { 'log:1': { data: { r: 3 }, deleted: false, updated_at: 't1' }, 'log:2': { data: { r: 1 }, deleted: false, updated_at: 't2' } }, last);
+  assert.deepEqual(plain(p.push), ['log:1']); assert.deepEqual(plain(p.pull), ['log:2']);
+});
+test('Borrado acá → se borra en la nube', () => {
+  const p = BL.planSync({}, { 'cata:7': { data: { x: 1 }, deleted: false, updated_at: 't1' } }, { 'cata:7': { h: H({ x: 1 }), u: 't1' } });
+  assert.deepEqual(plain(p.pushDelete), ['cata:7']);
+});
+test('Borrado en otro dispositivo → se borra acá', () => {
+  const p = BL.planSync({ 'cata:7': { x: 1 } }, { 'cata:7': { data: {}, deleted: true, updated_at: 't2' } }, { 'cata:7': { h: H({ x: 1 }), u: 't1' } });
+  assert.deepEqual(plain(p.removeLocal), ['cata:7']);
+});
+test('Borrado allá pero editado acá → se recupera', () => {
+  const p = BL.planSync({ 'cata:7': { x: 2 } }, { 'cata:7': { data: {}, deleted: true, updated_at: 't2' } }, { 'cata:7': { h: H({ x: 1 }), u: 't1' } });
+  assert.deepEqual(plain(p.push), ['cata:7']);
+});
+test('Sin cambios → no hace nada', () => {
+  const p = BL.planSync({ 'recipe:1': { g: 15 } }, { 'recipe:1': { data: { g: 15 }, deleted: false, updated_at: 't1' } }, { 'recipe:1': { h: H({ g: 15 }), u: 't1' } });
+  assert.equal(p.push.length + p.pull.length + p.pushDelete.length + p.removeLocal.length, 0);
+});
+test('Conflicto (cambió en los dos lados) → gana este dispositivo', () => {
+  const p = BL.planSync({ 'recipe:1': { g: 16 } }, { 'recipe:1': { data: { g: 17 }, deleted: false, updated_at: 't2' } }, { 'recipe:1': { h: H({ g: 15 }), u: 't1' } });
+  assert.deepEqual(plain(p.push), ['recipe:1']);
+});
+test('Receta conserva publicId válido y descarta uno inválido', () => {
+  assert.equal(BL.sanitizeRecipe({ brewer: 'v60', grams: 15, publicId: '6f1c2c1e-1111-4a2b-9c3d-123456789abc' }).publicId, '6f1c2c1e-1111-4a2b-9c3d-123456789abc');
+  assert.equal(BL.sanitizeRecipe({ brewer: 'v60', grams: 15, publicId: 'x' }).publicId, undefined);
+});
+
 console.log(`\n${passed} OK · ${failed} fallaron\n`);
 process.exit(failed ? 1 : 0);

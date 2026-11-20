@@ -1454,6 +1454,7 @@
           <div class="saved-recipe-actions">
             <button type="button" class="mini-btn" onclick="useSavedRecipe(${id})">▶ ${e(t('useRecipe'))}</button>
             <button type="button" class="mini-btn" onclick="shareRecipe(${id})">↗ ${e(t('shareRecipe'))}</button>
+            ${typeof cloudPublishButton === 'function' ? cloudPublishButton(recipe) : ''}
           </div>
         </div>
         <button type="button" class="saved-recipe-remove" onclick="armDelete(this, () => deleteSavedRecipe(${id}))" aria-label="${e(t('ariaDelete'))}">✕</button>

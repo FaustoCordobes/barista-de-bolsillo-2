@@ -106,6 +106,9 @@ function applyTranslationsExt() {
   if (active.id === 'screen-dialin') renderDialIn();
   if (active.id === 'screen-guided') renderGuided();
   if (active.id === 'screen-wheel') { renderWheelScreen(); syncFsButton(); }
+  if (typeof renderAccountButton === 'function') renderAccountButton();
+  if (active.id === 'screen-account') renderAccount();
+  if (active.id === 'screen-community') { renderCommunityControls(); renderCommunity(); }
 }
 
 function renderBrewerSelectOptions() {
@@ -1327,8 +1330,14 @@ function applyRecommendation() {
 function shareRecipe(id) {
   const recipe = savedRecipes.find(r => r.id === id);
   if (!recipe) return;
-  const url = location.origin + location.pathname + '#r=' + BL.encodeShare(recipe);
-  const title = 'Barista de Bolsillo · ' + (recipe.coffeeName || BREWER_LABELS[recipe.brewer]);
+  // Receta publicada en la Comunidad → link corto; si no, la receta va codificada en el link
+  const url = recipe.publicId && typeof publicRecipeUrl === 'function' && cloudConfigured()
+    ? publicRecipeUrl(recipe.publicId)
+    : location.origin + location.pathname + '#r=' + BL.encodeShare(recipe);
+  shareUrl(url, 'Barista de Bolsillo · ' + (recipe.coffeeName || BREWER_LABELS[recipe.brewer]));
+}
+
+function shareUrl(url, title) {
   if (navigator.share) {
     navigator.share({ title, text: t('shareText'), url }).catch(() => {});
     return;
@@ -1347,10 +1356,16 @@ function checkShareHash() {
   incomingRecipe = BL.decodeShare(h.slice(3));
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
   if (!incomingRecipe) { toast(t('shareInvalid')); return; }
-  const r = incomingRecipe;
+  presentIncomingRecipe(incomingRecipe);
+}
+
+// Muestra la hoja "Te compartieron una receta" (link codificado o receta pública de la Comunidad)
+function presentIncomingRecipe(r, author) {
+  incomingRecipe = r;
   const pts = (r.points || []).map(p => `${BL.fmtClock(p.min * 60 + p.sec)} → ${p.ml} ml`).join(' · ');
   document.getElementById('import-summary').innerHTML = `
     <div class="saved-recipe-brewer">${esc(r.coffeeName || BREWER_LABELS[r.brewer])}</div>
+    ${author ? `<div class="muted small">${esc(t('communityBy', { name: '@' + author }))}</div>` : ''}
     <div class="muted">${esc(BREWER_LABELS[r.brewer])} · ${esc(r.grind)} · ${fmtNum(r.grams)} g${r.ratio ? ' · ' + fmtRatio(r.ratio) : ''}</div>
     ${pts ? `<div class="muted small">${esc(pts)}</div>` : ''}
     ${r.origin ? `<div class="muted small">📍 ${esc(r.origin)}</div>` : ''}`;
@@ -1505,6 +1520,7 @@ function bootV2() {
   document.addEventListener('click', () => requestAnimationFrame(syncPressedStates));
   window.addEventListener('hashchange', checkShareHash); // link abierto con la app ya cargada
   checkShareHash();
+  if (typeof initCloud === 'function') initCloud();   // cuentas y comunidad (js/cloud.js)
 }
 
 bootV2();

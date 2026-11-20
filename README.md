@@ -17,13 +17,17 @@ js/flavors.js         DATOS EDITABLES: rueda de sabores (9 categorías → 21 fa
 js/i18n-ext.js        Textos nuevos en ES / EN / PT
 js/logic.js           Lógica pura y testeable: cálculos, fases, motor de diagnóstico, validación, migraciones, compartir
 js/app.js             Flujo original de 5 pasos (el script que estaba dentro de index.html), adaptado
+js/config.js          URL y clave pública de Supabase (vacío = sin cuentas)
+js/cloud.js           Cuentas, sincronización y Comunidad (Supabase)
+js/vendor/supabase.js Librería oficial de Supabase (se carga solo si hay cuentas)
+supabase/schema.sql   Base de datos + reglas de seguridad (RLS)
 js/wheel.js           Rueda de sabores interactiva (SVG) + hoja de cata + Mis catas
 js/features.js        UI nueva: receta dinámica, paso a paso, cold brew, dial-in, bitácora, Aprendé, recomendador, backup
 tests/logic.test.mjs  48 tests unitarios (cálculos, escalado, fases, motor de reglas, migraciones, compartir)
 tests/check-i18n.mjs  Verifica que los 3 idiomas estén completos y que no falte ninguna clave usada
 ```
 
-Orden de carga (todos `defer`): `data.js → flavors.js → i18n-ext.js → logic.js → app.js → wheel.js → features.js`.
+Orden de carga (todos `defer`): `data.js → flavors.js → config.js → i18n-ext.js → logic.js → app.js → wheel.js → cloud.js → features.js`.
 
 ## Probar localmente
 
@@ -70,6 +74,26 @@ node tests/check-i18n.mjs         # traducciones completas
 - **Etiquetas fijas en español:** "En / seg →" del cronograma y el selector de cafetera de "Mi café ideal" no se traducían.
 - **Teclado:** las opciones de tamaño, intensidad y molienda no se podían usar.
 
+## Cuentas, sincronización y Comunidad (v2.2)
+
+- **Cuenta con email + contraseña** (Supabase Auth): crear cuenta, ingresar, recuperar contraseña, elegir nombre de usuario, cerrar sesión (opcionalmente borrando los datos del dispositivo) y **eliminar la cuenta** (borra todo en la nube).
+- **Local primero:** la app sigue guardando en el dispositivo y funciona sin internet. Con sesión iniciada, recetas, bitácora y catas se sincronizan solas entre dispositivos (`BL.planSync` en `js/logic.js` decide qué sube, qué baja y qué se borró).
+- **Comunidad:** desde *Mi café ideal* → 🌍 Publicar. Las recetas públicas se ven en *Comunidad* (populares / recientes, filtro por método, búsqueda), con ❤️, Guardar, Preparar y link corto `?receta=<id>`.
+- Sin `js/config.js` completo, todo esto queda oculto y la app funciona como antes.
+
+### Cómo activarlo
+1. En supabase.com (con tu cuenta) creá un proyecto `barista-de-bolsillo`.
+2. **SQL Editor** → pegá `supabase/schema.sql` → *Run*. Crea las tablas con seguridad RLS.
+3. **Authentication → URL Configuration:** *Site URL* = `https://barista-de-bolsillo.vercel.app` y agregalo en *Redirect URLs*.
+4. **Project Settings → API:** copiá *Project URL* y la *anon / publishable key* en `js/config.js`. Nunca uses la `service_role`.
+5. Subí `VERSION` en `sw.js` y publicá.
+
+> **Mails:** el servidor de mail gratuito de Supabase tiene un límite bajo de envíos por hora (confirmaciones y recuperación de contraseña). Para uso real, configurá un SMTP propio (Authentication → Emails → SMTP), o desactivá "Confirm email" mientras probás.
+
+### Pruebas
+- `supabase/schema.sql` se probó sobre Postgres (PGlite): 24/24 reglas de seguridad (aislamiento entre usuarios, recetas públicas de solo lectura, contador de me gusta protegido, borrado en cascada).
+- E2E con Supabase simulado y dos dispositivos: 43/43 (registro, sincronización en ambos sentidos, borrados, publicar, me gusta, link público, eliminar cuenta, 3 idiomas, accesibilidad).
+
 ## Datos guardados y migración
 
 Todo queda en `localStorage`, sin cuentas. Claves:
@@ -113,7 +137,21 @@ Subí **todos** los archivos y carpetas (no solo `index.html`). Cuando cambies J
 - Lighthouse mobile. Original: Performance 86, Accesibilidad 100, Buenas prácticas 93. **v2: 87 / 100 / 96** (primer contenido visible 3,0 s → 2,1 s). Se midió con un servidor local sin compresión; en Vercel, con gzip/brotli, debería dar mejor.
 - axe-core (WCAG 2 A/AA): 0 violaciones en las pantallas principales, tanto en tema oscuro como claro.
 - Recorrido E2E automatizado: 82/82 checks (flujos, migración, XSS, offline, idiomas, teclado) + 43/43 de la rueda y la hoja de cata.
-- Tests unitarios: 51/51.
+- Tests unitarios: 60/60.
+
+## Créditos y licencias
+
+Se muestran dentro de la app: al final de la pantalla de la rueda y en ⚙️ Ajustes → *Acerca de y créditos*. **No los quites.**
+
+- **Proyecto sin fines de lucro:** Barista de Bolsillo es gratuito, no vende nada y no tiene publicidad ni suscripciones. Está hecho con fines de aprendizaje y para acercar el café de especialidad de forma didáctica.
+- **Rueda de sabores:** es una creación propia, con taxonomía, textos, colores y diseño propios. Está inspirada en la rueda interactiva de **Not Bad Coffee** (https://notbadcoffee.com/flavor-wheel-en/ · https://notbadcoffee.com/), un pequeño colectivo dedicado al buen café. Todos los derechos sobre su rueda, su diseño y sus contenidos pertenecen a Not Bad Coffee.
+- **Contacto para titulares de derechos:** la app ofrece un link a F-C Web Studio para pedir correcciones o bajas de contenido.
+- **Referencia profesional:** la *Coffee Taster's Flavor Wheel* de la **Specialty Coffee Association (SCA)** y **World Coffee Research (WCR)** © 2016 (https://www.sca.coffee/research/coffee-tasters-flavor-wheel), basada en el *Sensory Lexicon* de WCR (https://worldcoffeeresearch.org/resources/sensory-lexicon).
+  - Todos los derechos sobre esa rueda y ese léxico pertenecen a la SCA y a WCR. Esa rueda tiene licencia **Creative Commons BY-NC-ND 4.0** (https://creativecommons.org/licenses/by-nc-nd/4.0/): no permite usos comerciales ni versiones modificadas. Por eso la app **no copia ni adapta** su gráfico, su estructura ni sus definiciones, y solo la menciona con link a la fuente. Si algún día querés usar la rueda oficial dentro de la app, hace falta pedirle permiso a la SCA.
+- **Aviso:** Barista de Bolsillo no está afiliada ni respaldada por Not Bad Coffee, la SCA ni WCR. Las marcas pertenecen a sus dueños.
+- **Software de terceros:** Supabase JavaScript client, licencia MIT (`js/vendor/SUPABASE-LICENSE`).
+- **Tipografías:** Fraunces, Work Sans e IBM Plex Mono, de Google Fonts, licencia SIL Open Font License.
+- **Solo en desarrollo (no van en la app):** Playwright, axe-core y PGlite, para las pruebas.
 
 ## Pendiente / ideas para la próxima fase
 
@@ -122,5 +160,6 @@ Subí **todos** los archivos y carpetas (no solo `index.html`). Cuando cambies J
 - Bebidas con leche (latte, cappuccino, flat white).
 - Calculadora de agua (dureza / mineralización).
 - Calibración del molino: convertir categorías de molienda a clics (hoy los clics se registran a mano).
-- Fase 5 (requiere backend): cuentas, sincronización, recetas de la comunidad y notificaciones push reales para cold brew. Hoy el aviso funciona solo con la app abierta.
+- Notificaciones push reales para cold brew (hoy el aviso funciona solo con la app abierta).
+- Moderación de la Comunidad: botón "Reportar" y panel para ocultar recetas.
 - Simulador de "escanear bolsa": lo dejé afuera a propósito. Mostrar datos inventados como si se hubieran leído de la etiqueta confunde al usuario. Conviene hacerlo con OCR real.

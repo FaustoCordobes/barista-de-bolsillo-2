@@ -296,6 +296,7 @@ const BL = (function () {
       if (v) out[k] = v;
     });
     if (isNum(r.ratio)) out.ratio = round1(clamp(r.ratio, 1, 30));
+    if (typeof r.publicId === 'string' && /^[0-9a-f-]{36}$/.test(r.publicId)) out.publicId = r.publicId;
     if (r.sensory && typeof r.sensory === 'object') {
       out.sensory = {};
       ['acidez', 'cuerpo', 'dulzura'].forEach(k => { out.sensory[k] = Math.round(num(r.sensory[k], 0, 5, 0)); });
@@ -348,6 +349,57 @@ const BL = (function () {
       rating: Math.round(num(c.rating, 0, 5, 0)),
       notes: str(c.notes, 800)
     };
+  }
+
+  /* ---------------- Sincronización con la nube (local primero) ----------------
+   * Cada colección (recetas, bitácora, catas) se compara contra la nube y contra
+   * una "foto" de la última sincronización (last: clave → {h: hash, u: updated_at}).
+   * Así se detecta qué cambió acá, qué cambió en otro dispositivo y qué se borró,
+   * sin tener que marcar cada edición en el código de la app.
+   * local:  { clave: data }             (ya sanitizado)
+   * remote: { clave: { data, deleted, updated_at } }
+   * Devuelve las acciones a ejecutar; no toca nada por sí misma.            */
+  function stableStringify(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+    return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+  }
+  function hashData(v) {
+    const str = stableStringify(v);
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return (h >>> 0).toString(36) + ':' + str.length;
+  }
+
+  function planSync(local, remote, last) {
+    const plan = { push: [], pushDelete: [], pull: [], removeLocal: [], keep: {} };
+    const keys = new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(last)]);
+    keys.forEach(key => {
+      const l = local[key], r = remote[key], s = last[key];
+      const lh = l !== undefined ? hashData(l) : null;
+      if (l !== undefined && !r) { plan.push.push(key); return; }
+      if (l === undefined && r && !r.deleted) {
+        if (s && s.u === r.updated_at) plan.pushDelete.push(key);   // lo borraste acá
+        else plan.pull.push(key);                                    // nuevo o cambiado en otro dispositivo
+        return;
+      }
+      if (l === undefined) return;                                   // borrado en ambos lados
+      if (r.deleted) {
+        if (!s || lh !== s.h) plan.push.push(key);                   // lo editaste acá: se recupera
+        else plan.removeLocal.push(key);                             // se borró en otro dispositivo
+        return;
+      }
+      if (!s) {                                                      // primera vez que se cruzan
+        if (lh === hashData(r.data)) plan.keep[key] = { h: lh, u: r.updated_at };
+        else plan.pull.push(key);
+        return;
+      }
+      const localChanged = lh !== s.h, remoteChanged = r.updated_at !== s.u;
+      if (localChanged) plan.push.push(key);                         // si cambió en los dos, gana este dispositivo
+      else if (remoteChanged) plan.pull.push(key);
+      else plan.keep[key] = s;
+    });
+    return plan;
   }
 
   /* ---------------- Migraciones de almacenamiento ----------------
@@ -460,6 +512,7 @@ const BL = (function () {
     roastAdjust, cToF, parseDateFlexible, freshness,
     convergeStep, espressoVerdict, diagnose,
     sanitizeRecipe, sanitizeLogEntry, sanitizeCata, CATA_ATTRS, migrate, validateBackup,
-    encodeShare, decodeShare, averageByMethod, bestByCoffee
+    encodeShare, decodeShare, averageByMethod, bestByCoffee,
+    stableStringify, hashData, planSync
   };
 })();

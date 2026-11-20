@@ -9,7 +9,7 @@
  *
  * Para forzar una actualización completa: subí el número de VERSION.
  */
-const VERSION = 'bdb-v2.1.0';
+const VERSION = 'bdb-v2.2.2';
 const APP_CACHE = `${VERSION}-app`;
 const FONT_CACHE = 'bdb-fonts';
 
@@ -22,10 +22,13 @@ const PRECACHE = [
   './icon-maskable-512.png',
   './js/data.js',
   './js/flavors.js',
+  './js/config.js',
   './js/i18n-ext.js',
   './js/logic.js',
   './js/app.js',
   './js/wheel.js',
+  './js/cloud.js',
+  './js/vendor/supabase.js',
   './js/features.js',
   './img/logo.png',
   './img/prensa.png',

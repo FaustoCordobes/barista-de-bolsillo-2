@@ -8,7 +8,7 @@ import vm from 'node:vm';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const html = readFileSync(join(root, 'index.html'), 'utf8');
 const appJs = readFileSync(join(root, 'js/app.js'), 'utf8');
-const features = readFileSync(join(root, 'js/features.js'), 'utf8') + '\n' + readFileSync(join(root, 'js/wheel.js'), 'utf8');
+const features = readFileSync(join(root, 'js/features.js'), 'utf8') + '\n' + readFileSync(join(root, 'js/wheel.js'), 'utf8') + '\n' + readFileSync(join(root, 'js/cloud.js'), 'utf8');
 
 const ctx = vm.createContext({});
 // I18N original (script principal js/app.js)
